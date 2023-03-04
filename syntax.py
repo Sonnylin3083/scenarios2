@@ -1,5 +1,7 @@
 from enum import Enum
-prop_letters = ['T', 'F']+[chr(i) for i in range(ord('p'), ord('z')+1)]
+from random import choice, randint
+from typing import Iterator
+prop_letters = [chr(i) for i in range(ord('p'), ord('z')+1)] + ['T', 'F']
 
 
 class Connective(Enum):
@@ -17,6 +19,14 @@ class Connective(Enum):
     @classmethod
     def has_value(cls, value):
         return value in cls._value2member_map_
+
+    @classmethod
+    def get_binary(cls):
+        ret = []
+        for e in cls:
+            if e not in [Connective.NOT]:
+                ret.append(e)
+        return ret
 
 
 class Formula:
@@ -102,5 +112,36 @@ class Formula:
         else:
             raise Exception("Invalid String")
 
+    @staticmethod
+    def generate_formula(propositions=3) -> 'Formula':
+        variables = prop_letters[0:propositions+1]
+        return Formula._gen_formula(len(variables)-1, iter(variables))
+
+    @staticmethod
+    def _gen_formula(connectives: int, prop_letters: Iterator, negated=False):
+        if (connectives == 0):
+            return Formula(next(prop_letters))
+        # Before each formula, randomly add a "NOT" connective
+        if (not negated and randint(1, 4) == 1):
+            return Formula(Connective.NOT, Formula._gen_formula(connectives, prop_letters, negated=True))
+        else:
+            connectives -= 1
+            op = choice(Connective.get_binary())
+            num_left = randint(0, connectives)
+            num_right = connectives-num_left
+            return Formula(op, Formula._gen_formula(num_left, prop_letters),
+                           Formula._gen_formula(num_right, prop_letters))
+
     def __repr__(self) -> str:
         return self.inorder()
+
+    def _lol():
+        pass
+
+
+def f(n, array: list):
+    if (n <= 0):
+        return
+    f(n-1, array)
+    array.remove(array[0])
+    print(f"{n} - contents: {array}")
