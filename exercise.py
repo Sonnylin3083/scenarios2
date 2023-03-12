@@ -10,7 +10,7 @@ class Proposition:
         self.negated = negated
 
     def __str__(self):
-        return f"'{self.noun} is {('not ' if self.negated else '')+self.adjective}'"
+        return f"{self.noun} is {('not ' if self.negated else '')+self.adjective}"
 
 
 class Exercise:
@@ -18,11 +18,11 @@ class Exercise:
     adjs = ['Red', 'Green', 'Blue', 'Yellow', 'Hot',
             'Cold', 'Tasty', 'Bland', 'Spicy', 'Sour']
 
-    def __init__(self, difficulty=3) -> None:
+    def __init__(self, difficulty=2) -> None:
         self.formula = Formula.generate_formula(difficulty)
         self._generate_mapping()
 
-    def formula_to_str(self):
+    def __str__(self):
         parsed_formula = self._parse_formula(self.formula)
         return parsed_formula
 
@@ -30,7 +30,7 @@ class Exercise:
         if isinstance(formula.val, Connective):
             l = self._parse_formula(formula.left)
             if formula.val == Connective.NOT:
-                return l + " is false"
+                return f"'{l}' is false"
             r = self._parse_formula(formula.right)
             match formula.val:
                 case Connective.AND:
