@@ -1,9 +1,10 @@
 import PySimpleGUI as sg
 import tkinter as tk
 from exercise import Exercise
-from syntax import Connective, prop_letters
+from syntax import Connective, prop_letters, Formula
 from constants import *
 import appdirs
+import json
 import os
 
 sg.theme('Dark Blue 2')
@@ -25,39 +26,70 @@ layout = [[sg.Column(layout_menu, key='-COL1-')]]
 window = sg.Window('Swapping the contents of a window', layout)
 
 
+def get_saved_exercises():
+    p = appdirs.user_data_dir('English_2_Prop_App')
+    print(p)
+    if (not os.path.exists(p)):
+        os.makedirs(p)
+        print('No')
+    exercises_json = {'exercises': []}
+    exercise_fp = os.path.join(p, SAVED_EX_FILE)
+    if (not os.path.exists(exercise_fp)):
+        with open(exercise_fp, 'w+') as outfile:
+            json.dump(exercises_json, outfile)
+            outfile.close()
+    else:
+        with open(exercise_fp, 'r') as json_file:
+            try:
+                exercises_json = json.load(json_file)
+            except Exception as e:
+                print(e, "Deleting saved exercises file")
+                os.remove(exercise_fp)
+            json_file.close()
+    return exercises_json
+
+
+def save_exercises_to_json(exercise_json):
+    p = appdirs.user_data_dir('English_2_Prop_App')
+    with open(os.path.join(p, SAVED_EX_FILE), 'w+') as outfile:
+        json.dump(exercise_json, outfile)
+        outfile.close()
+
+
 def get_add_exercise_layout():
-    input_layout = [[sg.Text("Exercise Creator", font='Helvetica 18', size=(30, 2))],
+    input_layout = [[sg.Text("Exercise Creator", font='Helvetica 18', size=(20, 2))],
                     [sg.Text("English:"), sg.Multiline(tooltip="Enter the English sentence in this box", key='-INPUT_ENGLISH-',
-                                                       size=(20, 2), font='Helvetica 14')],
+                                                       size=(20, 2), font='Helvetica 14', do_not_clear=False)],
                     [sg.Text("Propositional Formula:"), sg.Multiline(tooltip="Enter the propositionak formula in this box", key='-INPUT_FORMULA-',
-                                                                     size=(20, 2), font='Helvetica 14')],
+                                                                     size=(20, 2), font='Helvetica 14', do_not_clear=False)],
                     [sg.Button('Add Exercise', key='-ADD_EXERCISE-',
                                font=MENU_FONT, auto_size_button=True)],]
     return [[sg.Column(input_layout, element_justification='c')]]
 
 
 def add_exercise_loop(win: sg.Window):
+    exercises_json = get_saved_exercises()
+    print(exercises_json)
     while True:
         ev, vals = win.read()
-
+        print(ev, vals)
         if ev in [sg.WIN_CLOSED, 'Exit', ]:
+            save_exercises_to_json(exercises_json)
             win.close()
-            break
-        if ev == '-ADD_EXERCISE-':
-            p = appdirs.user_data_dir('English_2_Prop_App')
-            print(p)
-            if (not os.path.exists(p)):
-                os.makedirs(p)
-                print('No')
-            if (os.path.exists(os.path.join(p, 'saved_exercises.txt'))):
-                with open(os.path.join(p, 'saved_exercises.txt'), 'r+') as f:
-                    print(f.read())
-                    f.close()
-            else:
-                with open(os.path.join(p, 'saved_exercises.txt'), 'w+') as f:
-                    f.write('test contents')
-                    f.close()
-        print('lol')
+            return
+        elif ev == '-ADD_EXERCISE-':
+            if (vals['-INPUT_ENGLISH-'] == '' or vals['-INPUT_FORMULA-'] == ''):
+                sg.popup("Input sentence or formula is empty.")
+                continue
+            try:
+                formula = Formula.parse(vals['-INPUT_FORMULA-'])
+                sentence = vals['-INPUT_ENGLISH-']
+                exercises_json['exercises'].append({sentence: str(formula)})
+                sg.popup("Exercise saved successfully!")
+            except Exception as e:
+                sg.popup(str(e), 'Error parsing')
+                continue
+            print(exercises_json)
 
 
 def get_game_layout():
@@ -128,9 +160,9 @@ def game_loop(win: sg.Window):
             print('button pressed')
             insert_string(win['-ANSWER-'].widget, ev.split('_')[-1])
         elif ev == '-CHECK_ANSWER-':
-            if (win['-ANSWER-'] == ''):
+            if (vals['-ANSWER-'] == ''):
                 sg.popup("Answer is empty.")
-                break
+                continue
             try:
                 input_str: str = vals['-ANSWER-']
                 # Replace any whitespace in the string
@@ -168,6 +200,7 @@ while True:
         window.hide()
         win2 = sg.Window('Game', layout=get_game_layout(), finalize=True)
         game_loop(win2)
+        print('back to main from play')
         window.UnHide()
 
     elif event == '-CREATE-':
@@ -175,5 +208,6 @@ while True:
         win2 = sg.Window('Exercise Creator',
                          layout=get_add_exercise_layout(), finalize=True)
         add_exercise_loop(win2)
+        print('back to main from create')
         window.UnHide()
 window.close()
