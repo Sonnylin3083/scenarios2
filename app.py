@@ -1,37 +1,21 @@
-import PySimpleGUI as sg
-import tkinter as tk
-from exercise import Exercise
-from syntax import Connective, prop_letters, Formula
-from constants import *
-import appdirs
 import json
 import os
+import random
+import tkinter as tk
 
-sg.theme('Dark Blue 2')
-sg.DEFAULT_TEXT_JUSTIFICATION = 'c'
-# ----------- Create the 3 layouts this Window will display -----------
-layout_menu = [[sg.Column([[sg.Text(MENU_TITLE, font=MENU_FONT)],
-               [sg.Button("Play Game", key='-PLAY-',
-                          font=MENU_FONT, auto_size_button=True)],
-               [sg.Button("Instructions", key='-INFO-',
-                          font=MENU_FONT, auto_size_button=True)],
-               [sg.Button("Add Exercises", key='-CREATE-', font=MENU_FONT, auto_size_button=True)]],
-    element_justification='c')]]
+import appdirs
+import PySimpleGUI as sg
+
+from constants import *
+from exercise import Exercise
+from syntax import Connective, Formula, prop_letters
 
 
-# ----------- Create actual layout using Columns and a row of Buttons
-
-layout = [[sg.Column(layout_menu, key='-COL1-')]]
-
-window = sg.Window('Swapping the contents of a window', layout)
-
-
-def get_saved_exercises():
+def load_saved_exercises():
     p = appdirs.user_data_dir('English_2_Prop_App')
     print(p)
     if (not os.path.exists(p)):
         os.makedirs(p)
-        print('No')
     exercises_json = {'exercises': []}
     exercise_fp = os.path.join(p, SAVED_EX_FILE)
     if (not os.path.exists(exercise_fp)):
@@ -42,8 +26,9 @@ def get_saved_exercises():
         with open(exercise_fp, 'r') as json_file:
             try:
                 exercises_json = json.load(json_file)
-            except Exception as e:
-                print(e, "Deleting saved exercises file")
+            except Exception:
+                sg.popup("Error Loading saved exercises",
+                         "Deleting saved exercises file...")
                 os.remove(exercise_fp)
             json_file.close()
     return exercises_json
@@ -56,19 +41,20 @@ def save_exercises_to_json(exercise_json):
         outfile.close()
 
 
-def get_add_exercise_layout():
-    input_layout = [[sg.Text("Exercise Creator", font='Helvetica 18', size=(20, 2))],
+def create_layout_add_exercise():
+    input_layout = [[sg.Text("Exercise Creator")],
                     [sg.Text("English:"), sg.Multiline(tooltip="Enter the English sentence in this box", key='-INPUT_ENGLISH-',
-                                                       size=(20, 2), font='Helvetica 14', do_not_clear=False)],
+                                                       size=(30, 2), do_not_clear=False)],
                     [sg.Text("Propositional Formula:"), sg.Multiline(tooltip="Enter the propositionak formula in this box", key='-INPUT_FORMULA-',
-                                                                     size=(20, 2), font='Helvetica 14', do_not_clear=False)],
+                                                                     size=(20, 2), do_not_clear=False)],
                     [sg.Button('Add Exercise', key='-ADD_EXERCISE-',
                                font=MENU_FONT, auto_size_button=True)],]
+
     return [[sg.Column(input_layout, element_justification='c')]]
 
 
 def add_exercise_loop(win: sg.Window):
-    exercises_json = get_saved_exercises()
+    exercises_json = load_saved_exercises()
     print(exercises_json)
     while True:
         ev, vals = win.read()
@@ -84,7 +70,8 @@ def add_exercise_loop(win: sg.Window):
             try:
                 formula = Formula.parse(vals['-INPUT_FORMULA-'])
                 sentence = vals['-INPUT_ENGLISH-']
-                exercises_json['exercises'].append({sentence: str(formula)})
+                exercises_json['exercises'].append(
+                    {"english": sentence, "formula": str(formula)})
                 sg.popup("Exercise saved successfully!")
             except Exception as e:
                 sg.popup(str(e), 'Error parsing')
@@ -92,26 +79,25 @@ def add_exercise_loop(win: sg.Window):
             print(exercises_json)
 
 
-def get_game_layout():
+def create_layout_game():
     input_buttons_layout = [[], []]
     label_val_map = {}
     for c in Connective:
-        label_val_map[c.name] = f'( {c.value} )'
-    label_val_map[Connective.NOT.name] = Connective.NOT.value
+        label_val_map[f"{c.name}: {c.value}"] = f'( {c.value} )'
     for x in ['(', ')']:
         label_val_map[x] = x
 
     print(label_val_map)
     for label, val in label_val_map.items():
         input_buttons_layout[0].append(
-            sg.Button(label, key=f'INPUT_BUTTON_{val}'))
+            sg.Button(label, font="Arial 16", key=f'INPUT_BUTTON_{val}'))
     for var in prop_letters[:MAX_PROPOSITIONS]:
         input_buttons_layout[1].append(
             sg.Button(var, key=f'INPUT_BUTTON_{var}'))
 
-    game_layout = [[sg.Text(key='-QUESTION-', font='Helvetica 18', size=(20, 2))],
+    game_layout = [[sg.Text(key='-QUESTION-', font='Helvetica 18', size=(30, 2))],
                    [sg.Multiline(tooltip="Enter your answer in this box", key='-ANSWER-',
-                                 size=(20, 2), font='Helvetica 14')],
+                                 size=(20, 2), font='Helvetica 16')],
                    [sg.Frame(None, input_buttons_layout)],
                    [sg.Button('Submit Answer', key='-CHECK_ANSWER-',
                               font=MENU_FONT, auto_size_button=True)],]
@@ -131,12 +117,28 @@ def insert_string(text: tk.Text, string):
         text.replace(start, end, string)
 
 
-def game_loop(win: sg.Window):
-    def gen_next_question(qn_num, score, difficulty=1):
+def game_loop(win: sg.Window, difficulty_str: str, num_questions: int, use_saved: bool):
 
-        exercise = Exercise(difficulty)
+    difficulty = {'Easy': 1, 'Normal': 2, 'Hard': 3}[difficulty_str]
+    exercises = []
+    """ 
+    Load {num_questions} Saved Exercises from saved exercises file.
+    If not enough saved exercises or {use_saved} is false, generate random exercises of specificed difficulty
+    to make the difference.
+    """
+    if (use_saved):
+        exercise_json = load_saved_exercises()
+        for saved_exercise in random.sample(exercise_json['exercises'],
+                                            min(num_questions, len(exercise_json['exercises']))):
+            exercises.append(
+                Exercise(formula_str=saved_exercise['formula'], english_repr=saved_exercise['english']))
+    for _ in range(num_questions-len(exercises)):
+        exercises.append(Exercise(difficulty))
+
+    def load_exercise(qn_num, score,):
+        exercise: Exercise = exercises[qn_num-1]
         win['-QUESTION_NUMBER-'].update(
-            f"Question {qn_num} of {NUM_QUESTIONS}")
+            f"Question {qn_num} of {num_questions}")
         win['-SCORE-'].update(f"Score: {score}")
         win['-QUESTION-'].update(str(exercise), )
         win['-ANSWER-'].update(exercise.formula)
@@ -146,9 +148,10 @@ def game_loop(win: sg.Window):
         win['-NEXT_QUESTION-'].update(visible=False)
         win['-CHECK_ANSWER-'].update(disabled=False)
         return exercise
+
     qn_num = 1
     curr_score = 0
-    curr_question = gen_next_question(qn_num, curr_score)
+    curr_question = load_exercise(qn_num, curr_score)
 
     while True:
         ev, vals = win.read()
@@ -183,31 +186,57 @@ def game_loop(win: sg.Window):
                 sg.popup("Answer is malformed")
         elif ev == '-NEXT_QUESTION-':
             qn_num += 1
-            if (qn_num > NUM_QUESTIONS):
+            if (qn_num > num_questions):
                 sg.popup(f"Congrats, your score is {curr_score}")
                 win.close()
                 return
-            curr_question = gen_next_question(qn_num, curr_score)
+            curr_question = load_exercise(qn_num, curr_score)
 
 
-while True:
-    event, values = window.read()
-    print(event, values)
-    if event in (None, sg.WIN_CLOSED):
-        break
-    if event == '-PLAY-':
-        print('lol')
-        window.hide()
-        win2 = sg.Window('Game', layout=get_game_layout(), finalize=True)
-        game_loop(win2)
-        print('back to main from play')
-        window.UnHide()
+if __name__ == '__main__':
+    sg.theme('Dark Blue 2')
+    sg.set_options(font=('', 20), element_size=(60, 1))
+    sg.DEFAULT_TEXT_JUSTIFICATION = 'l'
+    # ----------- Create the 3 layouts this Window will display -----------
+    layout_menu = [[sg.Column([[sg.Text(MENU_TITLE,)],
+                               [sg.Button("Play Game", key='-PLAY-',
+                                          font=MENU_FONT, auto_size_button=True)],
+                               [sg.Button("Instructions", key='-INFO-',
+                                          font=MENU_FONT, auto_size_button=True)],
+                               [sg.Button("Add Exercises", key='-CREATE-', font=MENU_FONT, auto_size_button=True)]],
+                              element_justification='c')]]
 
-    elif event == '-CREATE-':
-        window.hide()
-        win2 = sg.Window('Exercise Creator',
-                         layout=get_add_exercise_layout(), finalize=True)
-        add_exercise_loop(win2)
-        print('back to main from create')
-        window.UnHide()
-window.close()
+    # ----------- Create actual layout using Columns and a row of Buttons
+
+    layout = [[sg.Column(layout_menu, key='-COL1-')]]
+
+    window = sg.Window(MENU_TITLE, layout)
+    while True:
+        event, values = window.read()
+        print(event, values)
+        if event in (None, sg.WIN_CLOSED):
+            break
+        if event == '-PLAY-':
+            e, vals_settings = sg.Window('Game Settings', [[sg.Text("Difficulty:"),
+                                                            sg.Combo(['Easy', 'Normal', 'Hard'], default_value='Normal', readonly=True)],
+                                                           [sg.Text("Number of Exercises:"),
+                                                           sg.Combo([5, 10, 15], default_value=10, readonly=True)],
+                                                           [sg.Checkbox(
+                                                               "Prefer Saved Exercises")],
+                                                           [sg.Button("Play!")]]).read(close=True)
+            print(f"Read pop-up | {e} {vals_settings}")
+            window.hide()
+            win2 = sg.Window(
+                'Game', layout=create_layout_game(), finalize=True)
+            game_loop(win2, *(vals_settings[k] for k in vals_settings))
+            print('back to main from play')
+            window.UnHide()
+
+        elif event == '-CREATE-':
+            window.hide()
+            win2 = sg.Window('Exercise Creator',
+                             layout=create_layout_add_exercise(), finalize=True)
+            add_exercise_loop(win2)
+            print('back to main from create')
+            window.UnHide()
+    window.close()
