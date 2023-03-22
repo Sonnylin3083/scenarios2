@@ -29,6 +29,7 @@ class Exercise:
         if (self.english_repr is not None):
             return self.english_repr
         parsed_formula = self._parse_formula(self.formula)
+        # TODO: Weird Check
         if (parsed_formula[0] == '[' and parsed_formula[-1] == ']'):
             parsed_formula = parsed_formula[1:-1]
         return parsed_formula
