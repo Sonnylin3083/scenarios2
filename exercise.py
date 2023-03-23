@@ -13,9 +13,10 @@ class Proposition:
 
 
 class Exercise:
-    nouns = ['Water', 'Bread', 'Pizza', 'Celery', 'Pasta']
-    adjs = ['Red', 'Green', 'Blue', 'Yellow', 'Hot',
-            'Cold', 'Tasty', 'Bland', 'Spicy', 'Sour']
+    nouns = ['Water', 'Bread', 'Pizza', 'Celery', 'Pasta', "Soda", 'Cheese', 'Milk', 'Chocolate',
+             'Tea', 'Coffee', 'Sugar', 'Salt']
+    adjs = ['Red', 'Green', 'Blue', 'Yellow', 'Orange', 'Purple', 'Violet', 'Hot',
+            'Cold', 'Warm', 'Tasty', 'Bland', 'Spicy', 'Sour', "Sweet", "Salty", "Mild"]
 
     def __init__(self, difficulty=2, formula_str=None, english_repr=None) -> None:
 
@@ -30,7 +31,7 @@ class Exercise:
             return self.english_repr
         parsed_formula = self._parse_formula(self.formula)
         # TODO: Weird Check
-        if (parsed_formula[0] == '[' and parsed_formula[-1] == ']'):
+        if (parsed_formula[0] == '(' and parsed_formula[-1] == ')'):
             parsed_formula = parsed_formula[1:-1]
         return parsed_formula
 
@@ -38,7 +39,7 @@ class Exercise:
         if isinstance(formula.val, Connective):
             l = self._parse_formula(formula.left)
             if formula.val == Connective.NOT:
-                return f"[{l} is false]"
+                return f"({l} is false)"
             r = self._parse_formula(formula.right)
             match formula.val:
                 case Connective.AND:

@@ -42,26 +42,64 @@ def save_exercises_to_json(exercises: list):
         outfile.close()
 
 
+def insert_string(text: tk.Text, string):
+    if text.tag_ranges('sel') == ():
+        text.insert('insert', string)
+    else:
+        start, end = text.tag_ranges('sel')
+        text.replace(start, end, string)
+
+
+def pretty_print_exercise(text: sg.Multiline, exercise: Exercise):
+    text.update("")
+    is_prop = False
+    prop_colors = iter(PROP_FONT_COLORS)
+    for token in str(exercise).split("\'"):
+        text.print(token, end='',
+                   text_color='white' if not is_prop else next(prop_colors, 'White'))
+        is_prop = not is_prop
+
+
+def show_instructions(title='Instructions'):
+    layout = [[sg.Column([[sg.Text(f"{PHI} is a Well-Formed Formula iff", text_color='Gold')],
+                          [sg.T(f"{PHI} ∈ [p,q,r ... z] [Proposition]")],
+                          [sg.T(f"{PHI} = {repr(Connective.NOT)}{PHI} [Negation]")],
+                          [sg.T(
+                              f"{PHI} = ({PHI} {repr(Connective.AND)} {PHI})   [Conjunction]")],
+                          [sg.T(
+                              f"       ({PHI} {repr(Connective.OR)} {PHI})   [Disjunction]")],
+                          [sg.T(
+                              f"       ({PHI} {repr(Connective.IMPLIES)} {PHI})   [Implication]")],
+                          [sg.T(
+                              f"       ({PHI} {repr(Connective.IFF)} {PHI})   [Equivalence]")],
+                          [sg.Push(), sg.Button("OK"), sg.Push()]
+                          ])]]
+
+    sg.Window(title=title, layout=layout,
+              disable_close=False, keep_on_top=True).read(close=True)
+
+
 def create_layout_add_exercise():
 
     saved_ex_layout = [
-        [sg.Text(key='-SAVED_ENGLISH-', background_color='green')],
-        [sg.Text(key='-SAVED_FORMULA-', background_color='green')],
-        [sg.Button("Delete", key='-DEL_EXERCISE-'), sg.Button("Prev", key='-PREV_EXERCISE-', visible=False),
+        [sg.Multiline(key='-SAVED_ENGLISH-', size=(25, 2),
+                      no_scrollbar=False, disabled=True, pad=((10, 10), (5, 0)), text_color='White')],
+        [sg.Text(key='-SAVED_FORMULA-', )],
+        [sg.Button("Delete", key='-DEL_EXERCISE-'), sg.Button("Previous", key='-PREV_EXERCISE-'),
          sg.Button("Next", key='-NEXT_EXERCISE-'),]
     ]
-
-    input_layout = [[sg.Frame(title="Saved", key='ex_frame', layout=saved_ex_layout, expand_x=True)],
-                    [sg.Text("Exercise Creator")],
-                    [sg.Text("English:"),
-                     sg.Multiline(tooltip="Enter the English sentence in this box", key='-INPUT_ENGLISH-',
-                                  size=(20, 2), do_not_clear=True)],
-                    [sg.Text("Propositional Formula:"), sg.Multiline(tooltip="Enter the propositional formula in this box", key='-INPUT_FORMULA-',
-                                                                     size=(20, 2), do_not_clear=True)],
-                    [sg.Button('Add Exercise', key='-ADD_EXERCISE-',
-                               font=MENU_FONT, auto_size_button=True)],]
-
-    return [[sg.Column(input_layout, element_justification='c')]]
+    add_ex_layout = [
+        [sg.Text("English:"),
+         sg.Multiline(tooltip="Enter the English sentence in this box", key='-INPUT_ENGLISH-',
+                      size=(20, 2), do_not_clear=True)],
+        [sg.Text("Formula:"), sg.Multiline(tooltip="Enter the propositional formula in this box", key='-INPUT_FORMULA-',
+                                           size=(20, 2), do_not_clear=True)],
+        [sg.Button("Help", key='-HELP_BUTTON-'), sg.Button('Add Exercise', key='-ADD_EXERCISE-'), sg.Button("Exit")],]
+    layout = [sg.vtop([sg.Frame("Create Exercise", element_justification='c', layout=add_ex_layout),
+                       sg.Frame(title="Saved", key='ex_frame',
+                                layout=saved_ex_layout, expand_x=True),
+                       ])]
+    return [[sg.Column(layout, element_justification='c')]]
 
 
 def add_exercise_loop(win: sg.Window):
@@ -69,7 +107,7 @@ def add_exercise_loop(win: sg.Window):
     exercises = load_saved_exercises()
     print(exercises)
 
-    def updated_saved_ex_view(index: int):
+    def update_saved_ex_view(index: int):
         win['-DEL_EXERCISE-'].update(visible=False if len(
             exercises) == 0 else True)
         win['-PREV_EXERCISE-'].update(visible=False if index <=
@@ -82,10 +120,10 @@ def add_exercise_loop(win: sg.Window):
                                       exercises[index]['formula'])
         win['ex_frame'].update(
             "No Saved Exercises" if len(exercises) == 0 else
-            f"Exercise {index+1} of {len(exercises)}")
+            f"Saved Exercises ({index+1} of {len(exercises)})")
 
     saved_ex_index = 0
-    updated_saved_ex_view(saved_ex_index)
+    update_saved_ex_view(saved_ex_index)
 
     print(exercises)
     while True:
@@ -106,6 +144,8 @@ def add_exercise_loop(win: sg.Window):
                 sentence = vals['-INPUT_ENGLISH-']
                 exercises.append(
                     {"english": sentence, "formula": str(formula)})
+                win['-INPUT_ENGLISH-'].update("")
+                win['-INPUT_FORMULA-'].update("")
                 sg.popup("Exercise saved successfully!")
             except Exception as e:
                 sg.popup(str(e), 'Error parsing')
@@ -119,82 +159,87 @@ def add_exercise_loop(win: sg.Window):
             exercises.pop(saved_ex_index)
             saved_ex_index = 0
             sg.popup("Deleted")
-        updated_saved_ex_view(saved_ex_index)
+        elif ev == '-HELP_BUTTON-':
+            show_instructions("Formula Guidelines")
+        update_saved_ex_view(saved_ex_index)
 
 
 def create_layout_game():
-    input_buttons_layout = [[], []]
+    input_buttons_layout = [[], [], []]
     label_val_map = {}
     for c in Connective:
-        label_val_map[f"{c.name}: {c.value}"] = f'{c.value}'
-    for x in ['(', ')']:
-        label_val_map[x] = x
-
-    print(label_val_map)
+        label_val_map[f"{c.name} {c.value}"] = f'{c.value}'
+    cnt = 0
     for label, val in label_val_map.items():
-        input_buttons_layout[0].append(
-            sg.Button(label, font="Arial 16", key=f'INPUT_BUTTON_{val}'))
-    for var in prop_letters[:MAX_PROPOSITIONS]:
-        input_buttons_layout[1].append(
-            sg.Button(var, key=f'INPUT_BUTTON_{var}'))
+        input_buttons_layout[0 if cnt < 3 else 1].append(
+            sg.Button(label, font="Verdana 14", key=f'INPUT_BUTTON_{val}'))
+        cnt += 1
+    for var in prop_letters[:MAX_PROPOSITIONS]+['(', ')']:
+        input_buttons_layout[2].append(
+            sg.pin(sg.Button(var, font='Verdana 14', key=f'INPUT_BUTTON_{var}')))
+    input_buttons_layout[2].append(
+        sg.Button('DEL', font='Verdana 14', key='-DEL_SELECTION-', tooltip='Delete Input'),)
 
-    game_layout = [[sg.Text(key='-QUESTION-', font='Helvetica 18', size=(50, 2))],
-                   [sg.Multiline(tooltip="Enter your answer in this box", key='-ANSWER-',
-                                 size=(20, 2), font='Helvetica 16')],
-                   [sg.Frame(None, input_buttons_layout)],
-                   [sg.Button('Submit Answer', key='-CHECK_ANSWER-',
-                              font=MENU_FONT, auto_size_button=True)],]
+    answer_frame = sg.Frame("Answer",
+                            layout=[[sg.Multiline(tooltip="Enter your answer in this box", key='-ANSWER-',
+                                                  size=(15, 1), no_scrollbar=True, font='Arial 20'),
+                                     sg.Image(key='-ANSWER_FEEDBACK-')],
+                                    [sg.Text(
+                                        "", key='-SOLUTION-', text_color='Light Green', visible=True)],
+                                    [sg.Button('Submit', key='-CHECK_ANSWER-',
+                                               )]
+                                    ], expand_y=True, element_justification='c')
+
+    game_layout = [[sg.Frame(None, [[sg.Multiline(key='-QUESTION-', font='Helvetica 20',
+                                                  size=(44, 3), disabled=True, background_color=sg.theme_background_color())]],
+                             relief=sg.RELIEF_RAISED, border_width=3, pad=((0, 0), (10, 0)))],
+                   sg.vtop([sg.Frame("Input Options", input_buttons_layout),
+                            answer_frame,]),
+                   [sg.Button('Quit', key='-QUIT-'),
+                    sg.Button("Next Question", key='-NEXT_QUESTION-', visible=False)]]
+
     info_top = sg.Frame(title=None, expand_x=True, layout=[[sg.Text(
-        'Question 0 of 10', key='-QUESTION_NUMBER-'), sg.Push(), sg.Text('Score: 0', key='-SCORE-')]])
-    info_bar = [[sg.Button('Quit', key='-QUIT-'),
-                 sg.Button("Next Question", key='-NEXT_QUESTION-', visible=False)]]
-    game_layout += info_bar
+        'Question 0 of 10', font="Verdana 18 bold", key='-QUESTION_NUMBER-'), sg.Push(), sg.Text('Score: 0', key='-SCORE-')]])
+
     return [[sg.Column([[info_top]]+game_layout, element_justification='c')]]
-
-
-def insert_string(text: tk.Text, string):
-    if text.tag_ranges('sel') == ():
-        text.insert('insert', string)
-    else:
-        start, end = text.tag_ranges('sel')
-        text.replace(start, end, string)
 
 
 def game_loop(win: sg.Window, difficulty_str: str, num_questions: int, use_saved: bool):
 
     difficulty = {'Easy': 1, 'Normal': 2, 'Hard': 3}[difficulty_str]
     exercises = []
-    """ 
+    """
     Load {num_questions} Saved Exercises from saved exercises file.
     If not enough saved exercises or {use_saved} is false, generate random exercises of specificed difficulty
     to make the difference.
     """
     if (use_saved):
-        exercises = load_saved_exercises()
-        for saved_exercise in random.sample(exercises,
-                                            min(num_questions, len(exercises))):
+        saved_exercises = load_saved_exercises()
+        for saved_exercise in random.sample(saved_exercises,
+                                            min(num_questions, len(saved_exercises))):
             exercises.append(
                 Exercise(formula_str=saved_exercise['formula'], english_repr=saved_exercise['english']))
     for _ in range(num_questions-len(exercises)):
         exercises.append(Exercise(difficulty))
 
-    def load_exercise(qn_num, score,):
+    def load_next_exercise(qn_num):
         exercise: Exercise = exercises[qn_num-1]
         win['-QUESTION_NUMBER-'].update(
             f"Question {qn_num} of {num_questions}")
-        win['-SCORE-'].update(f"Score: {score}")
-        win['-QUESTION-'].update(str(exercise), )
-        win['-ANSWER-'].update(exercise.formula)
+        pretty_print_exercise(win['-QUESTION-'], exercise)
+        win['-ANSWER_FEEDBACK-'].update(data=None)
+        win['-SOLUTION-'].update(visible=False)
         for var in prop_letters[:MAX_PROPOSITIONS]:
             win[f'INPUT_BUTTON_{var}'].update(
                 visible=True if (var in exercise.formula.variables()) else False)
         win['-NEXT_QUESTION-'].update(visible=False)
         win['-CHECK_ANSWER-'].update(disabled=False)
+        win['-ANSWER-'].update(disabled=False)
         return exercise
 
     qn_num = 1
     curr_score = 0
-    curr_question = load_exercise(qn_num, curr_score)
+    curr_question = load_next_exercise(qn_num)
 
     while True:
         ev, vals = win.read()
@@ -205,6 +250,13 @@ def game_loop(win: sg.Window, difficulty_str: str, num_questions: int, use_saved
         if 'INPUT_BUTTON' in ev:
             print('button pressed')
             insert_string(win['-ANSWER-'].widget, ev.split('_')[-1])
+        elif ev == '-DEL_SELECTION-':
+            text: tk.Text = win['-ANSWER-'].widget
+            if text.tag_ranges('sel') == ():
+                text.delete('insert -1c')
+            else:
+                start, end = text.tag_ranges('sel')
+                text.delete(start, end)
         elif ev == '-CHECK_ANSWER-':
             if (vals['-ANSWER-'] == ''):
                 sg.popup("Answer is empty.")
@@ -218,42 +270,53 @@ def game_loop(win: sg.Window, difficulty_str: str, num_questions: int, use_saved
                 if (is_correct):
                     print("Correct!")
                     curr_score += 10
+                    win['-SCORE-'].update(f"Score: {curr_score}")
+                    win['-ANSWER_FEEDBACK-'].update(
+                        data=CHECK, subsample=12)
                 else:
-                    print(curr_question.formula)
+                    win['-ANSWER_FEEDBACK-'].update(
+                        data=sg.RED_X_BASE64, subsample=2)
                     print("wrong")
+
+                win['-SOLUTION-'].update(value=f'Solution: {str(curr_question.formula)}',
+                                         visible=True)
+
+                win['-ANSWER-'].update(disabled=True)
                 win['-CHECK_ANSWER-'].update(disabled=True)
                 win['-NEXT_QUESTION-'].update(visible=True)
 
             except Exception as e:
                 print(e)
-                sg.popup("Answer is malformed")
+                show_instructions("Answer is not well-formed")
         elif ev == '-NEXT_QUESTION-':
             qn_num += 1
             if (qn_num > num_questions):
                 sg.popup(f"Congrats, your score is {curr_score}")
                 win.close()
                 return
-            curr_question = load_exercise(qn_num, curr_score)
+            curr_question = load_next_exercise(qn_num)
 
 
 if __name__ == '__main__':
+    # sg.theme('Blue Purple')
     sg.theme('Dark Blue 2')
-    sg.set_options(font=('', 18), element_size=(60, 1))
+    sg.set_options(font=('Verdana', 18), element_size=(60, 1))
     sg.DEFAULT_TEXT_JUSTIFICATION = 'l'
     # ----------- Create the 3 layouts this Window will display -----------
-    layout_menu = [[sg.Column([[sg.Text(MENU_TITLE, font=('Cambria', 40))],
-                               [sg.Button("Play Game", key='-PLAY-',
-                                          font=MENU_FONT, auto_size_button=True)],
-                               [sg.Button("Instructions", key='-INFO-',
-                                          font=MENU_FONT, auto_size_button=True)],
-                               [sg.Button("Add Exercises", key='-CREATE-', font=MENU_FONT, auto_size_button=True)]],
-                              element_justification='c')]]
+    layout_menu = [[sg.Column(
+        [[sg.Text(APP_TITLE, key='-TITLE-', font=('Cambria', 40), text_color='Yellow')],
+         [sg.Image(data=MAIN_MENU_ICON_B64, subsample=12)],
+         [sg.Button("Play Game", key='-PLAY-',
+                    font=MENU_FONT, auto_size_button=True, pad=((0, 0), (5, 15)))],
+         [sg.Button("Exercise Editor", key='-CREATE-', font=MENU_FONT, auto_size_button=True)]],
+        element_justification='c')]]
 
     # ----------- Create actual layout using Columns and a row of Buttons
 
     layout = [[sg.Column(layout_menu, key='-COL1-')]]
 
-    window = sg.Window(MENU_TITLE, layout)
+    window = sg.Window(MENU_TITLE, layout, finalize=True)
+
     while True:
         event, values = window.read()
         print(event, values)
@@ -261,7 +324,7 @@ if __name__ == '__main__':
             break
         if event == '-PLAY-':
             ev, vals_settings = sg.Window('Game Settings', [[sg.Text("Difficulty:"),
-                                                            sg.Combo(['Easy', 'Normal', 'Hard'], default_value='Normal', readonly=True)],
+                                                             sg.Combo(['Easy', 'Normal', 'Hard'], default_value='Normal', readonly=True)],
                                                             [sg.Text("Number of Exercises:"),
                                                             sg.Combo([5, 10, 15], default_value=10, readonly=True)],
                                                             [sg.Checkbox(
@@ -276,7 +339,8 @@ if __name__ == '__main__':
             game_loop(win2, *(vals_settings[k] for k in vals_settings))
             print('back to main from play')
             window.UnHide()
-
+        elif event == '-INFO-':
+            show_instructions()
         elif event == '-CREATE-':
             window.hide()
             win2 = sg.Window('Exercise Creator',
