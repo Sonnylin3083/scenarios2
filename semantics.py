@@ -3,11 +3,14 @@
 from syntax import *
 from itertools import product
 from typing import Iterable, Sequence, Mapping
-
+# Type Class of valuations
 Valuation = Mapping[str, bool]
 
 
 def evaluate(formula: Formula, valuation: Valuation) -> bool:
+    """ 
+     Evaluate the truth value of the formula under the provided valuation
+       """
     if (isinstance(formula.val, Connective)):
         match formula.val:
             case Connective.NOT:
@@ -27,19 +30,20 @@ def evaluate(formula: Formula, valuation: Valuation) -> bool:
     else:
         return valuation[formula.val]
 
-# Return the mapping in lexiographical order
-
 
 def all_valuations(vars: Sequence[str]) -> Iterable[Valuation]:
+    """ Return all valuations in lexiographical order """
     valuations = product([False, True], repeat=len(vars))
     return map(lambda p: dict(zip(vars, p)), valuations)
 
 
 def truth_values(formula: Formula, valuations: Iterable[Valuation]) -> Iterable[bool]:
+    """ Return the truth value of the formula evaluated under each of the supplied valuations """
     return [evaluate(formula, p) for p in valuations]
 
 
 def print_truth_table(formula: Formula) -> None:
+    """ Print the truth value of the formula under all possible valuations """
     valuations = all_valuations(formula.variables())
     header = "|"
     for var in formula.variables():

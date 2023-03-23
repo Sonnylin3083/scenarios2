@@ -1,7 +1,6 @@
 import json
 import os
 import random
-import tkinter as tk
 
 import appdirs
 import PySimpleGUI as sg
@@ -11,7 +10,13 @@ from exercise import Exercise
 from syntax import Connective, Formula, prop_letters
 
 
-def load_saved_exercises():
+def load_saved_exercises() -> list[dict[str, str]]:
+    """ Read the saved exercises file in the user's (OS-dependent) app data directory.
+
+    If the file does not exist, create it.
+
+    Return a List of Dicts of the form {"english": ..., "formula": ...}
+    """
     p = appdirs.user_data_dir('English_2_Prop_App')
     print(p)
     if (not os.path.exists(p)):
@@ -30,27 +35,39 @@ def load_saved_exercises():
                 print(e)
                 sg.popup("Error Loading saved exercises",
                          "Deleting saved exercises file...")
-                # os.remove(exercise_fp)
-            json_file.close()
+            finally:
+                json_file.close()
+                os.remove(exercise_fp)
     return exercises
 
 
 def save_exercises_to_json(exercises: list):
+    """Write a list of exercises to a JSON file in the user's AppData directory  """
     p = appdirs.user_data_dir('English_2_Prop_App')
     with open(os.path.join(p, SAVED_EX_FILE), 'w+') as outfile:
         json.dump(exercises, outfile, indent=4)
         outfile.close()
 
 
-def insert_string(text: tk.Text, string):
-    if text.tag_ranges('sel') == ():
-        text.insert('insert', string)
+def insert_string(tk_text, string):
+    """ 
+    Insert a string at the cursor position of a tkinter Text element
+    If part of the text is selected, replace selection with string instead. 
+    """
+
+    if tk_text.tag_ranges('sel') == ():
+        tk_text.insert('insert', string)
     else:
-        start, end = text.tag_ranges('sel')
-        text.replace(start, end, string)
+        start, end = tk_text.tag_ranges('sel')
+        tk_text.replace(start, end, string)
 
 
 def pretty_print_exercise(text: sg.Multiline, exercise: Exercise):
+    """ 
+    Write an exercise to a Multiline Element.
+    Color propositions according to a color gradient
+    Propositions are enclosed by a pair of single apostrophe characters 
+    """
     text.update("")
     is_prop = False
     prop_colors = iter(PROP_FONT_COLORS)
@@ -61,6 +78,7 @@ def pretty_print_exercise(text: sg.Multiline, exercise: Exercise):
 
 
 def show_instructions(title='Instructions'):
+    """ Create and show a popup with instructions on what a well-formed formula is"""
     layout = [[sg.Column([[sg.Text(f"{PHI} is a Well-Formed Formula iff", text_color='Gold')],
                           [sg.T(f"{PHI} ∈ [p,q,r ... z] [Proposition]")],
                           [sg.T(f"{PHI} = {repr(Connective.NOT)}{PHI} [Negation]")],
@@ -80,7 +98,7 @@ def show_instructions(title='Instructions'):
 
 
 def create_layout_add_exercise():
-
+    """ Create and return a fresh loadout for the exercise editor """
     saved_ex_layout = [
         [sg.Multiline(key='-SAVED_ENGLISH-', size=(25, 2),
                       no_scrollbar=False, disabled=True, pad=((10, 10), (5, 0)), text_color='White')],
@@ -103,7 +121,7 @@ def create_layout_add_exercise():
 
 
 def add_exercise_loop(win: sg.Window):
-
+    """ Event Handler for the exercise editor """
     exercises = load_saved_exercises()
     print(exercises)
 
@@ -165,6 +183,7 @@ def add_exercise_loop(win: sg.Window):
 
 
 def create_layout_game():
+    """ Create and return a fresh layout for the propositional logic game """
     input_buttons_layout = [[], [], []]
     label_val_map = {}
     for c in Connective:
@@ -205,14 +224,13 @@ def create_layout_game():
 
 
 def game_loop(win: sg.Window, difficulty_str: str, num_questions: int, use_saved: bool):
-
+    """ Event Handler for the game section """
     difficulty = {'Easy': 1, 'Normal': 2, 'Hard': 3}[difficulty_str]
     exercises = []
-    """
-    Load {num_questions} Saved Exercises from saved exercises file.
-    If not enough saved exercises or {use_saved} is false, generate random exercises of specificed difficulty
-    to make the difference.
-    """
+
+    # Load saved exercises from saved exercises file.
+    # If not enough saved exercises or {use_saved} is false, generate random exercises of specified difficulty
+    # to make the difference.
     if (use_saved):
         saved_exercises = load_saved_exercises()
         for saved_exercise in random.sample(saved_exercises,
@@ -221,7 +239,7 @@ def game_loop(win: sg.Window, difficulty_str: str, num_questions: int, use_saved
                 Exercise(formula_str=saved_exercise['formula'], english_repr=saved_exercise['english']))
     for _ in range(num_questions-len(exercises)):
         exercises.append(Exercise(difficulty))
-
+    """ Get the next exercise and update the display elements accordingly """
     def load_next_exercise(qn_num):
         exercise: Exercise = exercises[qn_num-1]
         win['-QUESTION_NUMBER-'].update(
@@ -234,7 +252,8 @@ def game_loop(win: sg.Window, difficulty_str: str, num_questions: int, use_saved
                 visible=True if (var in exercise.formula.variables()) else False)
         win['-NEXT_QUESTION-'].update(visible=False)
         win['-CHECK_ANSWER-'].update(disabled=False)
-        win['-ANSWER-'].update(disabled=False)
+        win['-ANSWER-'].update(value='', disabled=False)
+        print("Solution:", exercise.formula)
         return exercise
 
     qn_num = 1
@@ -247,16 +266,19 @@ def game_loop(win: sg.Window, difficulty_str: str, num_questions: int, use_saved
         if ev in [sg.WIN_CLOSED, '-QUIT-', 'Exit']:
             win.close()
             return
+        # Handle input if user clicks an input button
         if 'INPUT_BUTTON' in ev:
             print('button pressed')
             insert_string(win['-ANSWER-'].widget, ev.split('_')[-1])
         elif ev == '-DEL_SELECTION-':
-            text: tk.Text = win['-ANSWER-'].widget
-            if text.tag_ranges('sel') == ():
-                text.delete('insert -1c')
+            tk_text = win['-ANSWER-'].widget
+            if tk_text.tag_ranges('sel') == ():
+                tk_text.delete('insert -1c')
             else:
-                start, end = text.tag_ranges('sel')
-                text.delete(start, end)
+                start, end = tk_text.tag_ranges('sel')
+                tk_text.delete(start, end)
+        # Validate the user's input is non-empty and well-formed
+        # If so, check that is logically equivalent to the canonical formula and show the corresponding result
         elif ev == '-CHECK_ANSWER-':
             if (vals['-ANSWER-'] == ''):
                 sg.popup("Answer is empty.")
@@ -302,7 +324,7 @@ if __name__ == '__main__':
     sg.theme('Dark Blue 2')
     sg.set_options(font=('Verdana', 18), element_size=(60, 1))
     sg.DEFAULT_TEXT_JUSTIFICATION = 'l'
-    # ----------- Create the 3 layouts this Window will display -----------
+    # Layout for the main menu
     layout_menu = [[sg.Column(
         [[sg.Text(APP_TITLE, key='-TITLE-', font=('Cambria', 40), text_color='Yellow')],
          [sg.Image(data=MAIN_MENU_ICON_B64, subsample=12)],
@@ -310,14 +332,12 @@ if __name__ == '__main__':
                     font=MENU_FONT, auto_size_button=True, pad=((0, 0), (5, 15)))],
          [sg.Button("Exercise Editor", key='-CREATE-', font=MENU_FONT, auto_size_button=True)]],
         element_justification='c')]]
-
-    # ----------- Create actual layout using Columns and a row of Buttons
-
     layout = [[sg.Column(layout_menu, key='-COL1-')]]
 
     window = sg.Window(MENU_TITLE, layout, finalize=True)
 
     while True:
+        # Event Handler for the main menu
         event, values = window.read()
         print(event, values)
         if event in (None, sg.WIN_CLOSED):

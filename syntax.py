@@ -1,10 +1,12 @@
 from enum import Enum
 from random import choice, randint
 from typing import Iterator
+# Valid proposition variables
 prop_letters = [chr(i) for i in range(ord('p'), ord('z')+1)] + ['T', 'F']
 
 
 class Connective(Enum):
+    """ Enum for logical connectives """
     AND = '&'
     OR = '|'
     NOT = '~'
@@ -30,6 +32,8 @@ class Connective(Enum):
 
 
 class Formula:
+    """ Parse Tree to represent propositional logic formulas """
+
     def __init__(self, val=None, left=None, right=None) -> None:
         self.left = left
         self.right = right
@@ -37,16 +41,6 @@ class Formula:
             self.val = Connective(val)
         else:
             self.val = val
-
-    def _insert(self, val):
-        if (not isinstance(self.val, Connective)):
-            raise Exception("Cannot insert in non-connective node")
-        if (self.left is None):
-            self.left = Formula(val)
-        elif (self.right is None):
-            self.right = Formula(val)
-        else:
-            raise Exception("Node has 2 children")
 
     def to_list(self):
         if (not isinstance(self.val, Connective)):
@@ -57,6 +51,7 @@ class Formula:
             return self.left.to_list()+[self.val]+self.right.to_list()
 
     def variables(self):
+        """ Return the set of variables """
         var_set = set()
         for symbol in self.to_list():
             if symbol in prop_letters and symbol not in ['T', 'F']:
@@ -73,6 +68,8 @@ class Formula:
 
     @staticmethod
     def _parse_prefix(string: str):
+        """ Return the proper prefix and remainder of the current string 
+        """
         if (len(string) == 0):
             return (None, "Error: Zero Length String")
         token, rest = string[0], string[1:]
@@ -106,6 +103,7 @@ class Formula:
             return (None, f"Error in {string}")
 
     def parse(string: str) -> 'Formula':
+        """ Parse a valid str representation of a formula and return the Formula equivalent """
         prefix, remainder = Formula._parse_prefix(string)
         if (len(remainder) == 0):
             return prefix
@@ -113,8 +111,11 @@ class Formula:
             raise Exception("Invalid String")
 
     @staticmethod
-    def generate_formula(propositions=3) -> 'Formula':
-        variables = prop_letters[0:propositions+1]
+    def generate_formula(number=3) -> 'Formula':
+        """ Generate a parse tree containing @number propositions 
+        and @(number - 1) connectives (Negation excluded).
+        """
+        variables = prop_letters[0:number+1]
         return Formula._gen_formula(len(variables)-1, iter(variables))
 
     @staticmethod
@@ -134,14 +135,3 @@ class Formula:
 
     def __repr__(self) -> str:
         return self.inorder()
-
-    def _lol():
-        pass
-
-
-def f(n, array: list):
-    if (n <= 0):
-        return
-    f(n-1, array)
-    array.remove(array[0])
-    print(f"{n} - contents: {array}")

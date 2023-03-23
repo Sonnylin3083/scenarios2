@@ -4,6 +4,8 @@ import random
 
 
 class Proposition:
+    """ Represents English propositions of the form 'x is p', where x is a noun and p an adjective """
+
     def __init__(self, noun: str = 'Dog', adjective: str = 'Hungry') -> None:
         self.noun = noun
         self.adjective = adjective
@@ -13,6 +15,7 @@ class Proposition:
 
 
 class Exercise:
+
     nouns = ['Water', 'Bread', 'Pizza', 'Celery', 'Pasta', "Soda", 'Cheese', 'Milk', 'Chocolate',
              'Tea', 'Coffee', 'Sugar', 'Salt']
     adjs = ['Red', 'Green', 'Blue', 'Yellow', 'Orange', 'Purple', 'Violet', 'Hot',
@@ -30,7 +33,7 @@ class Exercise:
         if (self.english_repr is not None):
             return self.english_repr
         parsed_formula = self._parse_formula(self.formula)
-        # TODO: Weird Check
+
         if (parsed_formula[0] == '(' and parsed_formula[-1] == ')'):
             parsed_formula = parsed_formula[1:-1]
         return parsed_formula
@@ -64,6 +67,7 @@ class Exercise:
         return var_map
 
     def check_answer(self, answer: str) -> bool:
+        """ Check that the formula str is logically equivalent to self.formula under all valuations """
         formula = Formula.parse(answer)
         valuations = list(all_valuations(self.formula.variables()))
         if (truth_values(formula, valuations) == truth_values(self.formula, valuations)):
